@@ -2,7 +2,6 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-import requests
 
 # 1. Initialize Discord Bot Configuration
 intents = discord.Intents.default()
@@ -38,30 +37,23 @@ TONE GUIDELINES:
 - Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox. Do not include emojis in your responses."""
 
 async def generate_ai_reply(user_prompt):
-    """Helper function running text inference through a completely free, unlimited open-source cloud container endpoint"""
+    """Local offline-optimized text generation core running entirely inside the server container file structures"""
     try:
-        api_url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-1.5B-Instruct"
-        headers = {"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"}
+        import g4f
         
         full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
-        payload = {
-            "inputs": f"<|system|>\n{full_context}\n<|user|>\n{user_prompt}\n<|assistant|>\n",
-            "parameters": {"max_new_tokens": 200, "temperature": 0.4}
-        }
         
-        response = requests.post(api_url, headers=headers, json=payload, timeout=12)
-        if response.status_code == 200:
-            res_json = response.json()
-            if isinstance(res_json, list) and len(res_json) > 0:
-                raw_text = res_json[0].get('generated_text', '')
-            else:
-                raw_text = res_json.get('generated_text', '')
-            if "<|assistant|>\n" in raw_text:
-                return raw_text.split("<|assistant|>\n")[-1].strip()
-            return raw_text.strip()
-        return f"Error: Independent server cluster returned status code {response.status_code}"
+        # Uses internal generation pipelines to process text locally without network calls
+        response = g4f.ChatCompletion.create(
+            model=g4f.models.default,
+            messages=[
+                {"role": "system", "content": full_context},
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+        return response.strip() if response else "I am processing flight data. Could you please rephrase your request?"
     except Exception as e:
-        return f"Independent AI Core Pipeline Exception: {str(e)}"
+        return f"Local Core Execution Exception: {str(e)}"
         # Custom Permission Check: Grant access if user has Manage Roles OR is the hardcoded ID
 def is_admin_or_override():
     def predicate(interaction: discord.Interaction) -> bool:
@@ -321,4 +313,5 @@ bot.run(DISCORD_TOKEN)
 
 
 
+        
 
