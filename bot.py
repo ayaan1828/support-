@@ -2,8 +2,6 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from google import genai
-from google.genai import types
 import requests
 
 # 1. Initialize Discord Bot Configuration
