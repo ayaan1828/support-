@@ -15,7 +15,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 
-# 3. Dynamic Application Memory Storage
+# 3. Global Hardcoded Override Permission
+OVERRIDE_USER_ID = 1433433247735353370
+
+# 4. Dynamic Application Memory Storage
 SERVER_CONFIG = {
     "info_documents": "We operate across multiple airports. If optional upgrades glitch, use !rejoin or reconnect.",
     "departments": "General Flight Support, Premium/First Class Priority Desk, Staff HR",
@@ -25,7 +28,7 @@ SERVER_CONFIG = {
 
 ACTIVE_CLAIMS = {} 
 
-# 4. Standard Airline Guidelines Context
+# 5. Standard Airline Guidelines Context
 BASE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
 Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info.
 
@@ -59,7 +62,17 @@ async def generate_ai_reply(user_prompt):
     )
     return response.text if response.text else "I am processing flight data. Could you please rephrase your request?"
 
-# 5. Application Commands Interface Setup
+# Custom Permission Check: Grant access if user has Manage Roles OR is the hardcoded ID
+def is_admin_or_override():
+    def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.id == OVERRIDE_USER_ID:
+            return True
+        if interaction.permissions.manage_roles:
+            return True
+        raise app_commands.MissingPermissions(["manage_roles"])
+    return app_commands.check(predicate)
+
+# 6. Application Commands Interface Setup
 @bot.event
 async def on_ready():
     print("🔄 Synchronizing global slash commands...")
@@ -91,7 +104,7 @@ async def claim(interaction: discord.Interaction, passenger_id: str):
         f"They can text you back here.", 
         ephemeral=False
     )
-    # Command: /unclaim (Close Ticket)
+# Command: /unclaim (Close Ticket)
 @bot.tree.command(name="unclaim", description="Close an active support session and return the passenger back to the AI assistant.")
 @app_commands.describe(passenger_id="The Discord User ID of the passenger whose session you want to close.")
 async def unclaim(interaction: discord.Interaction, passenger_id: str):
@@ -118,7 +131,7 @@ async def unclaim(interaction: discord.Interaction, passenger_id: str):
 
 # Command: /configure
 @bot.tree.command(name="configure", description="Configure AI guidelines, corporate departments, and channel outputs.")
-@app_commands.checks.has_permissions(manage_roles=True)
+@is_admin_or_override()  # Uses our custom override permission checker
 @app_commands.describe(
     documents="Custom rules or update details the AI should read to answer passenger prompts.",
     departments="List of custom organizational support divisions.",
@@ -155,7 +168,7 @@ async def configure_error(interaction: discord.Interaction, error: app_commands.
     if isinstance(error, app_commands.MissingPermissions):
         await interaction.response.send_message("❌ Access Denied: You need the `Manage Roles` permission to modify configurations.", ephemeral=True)
 
-# 6. Messaging Router Pipeline Logic
+# 7. Messaging Router Pipeline Logic
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -227,6 +240,8 @@ if not DISCORD_TOKEN:
     raise ValueError("CRITICAL ERROR: DISCORD_TOKEN is missing or completely unreadable on the settings page.")
 
 bot.run(DISCORD_TOKEN)
+
+
 
 
 
