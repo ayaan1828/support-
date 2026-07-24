@@ -7,32 +7,37 @@ from google.genai import types
 # 1. Initialize Discord Bot Configuration
 intents = discord.Intents.default()
 intents.message_content = True  
-intents.members = True 
+intents.members = True # Essential to handle incoming Direct Messages smoothly
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 2. Safely Fetch API Credentials
-# If the Fusion panel drops the key, this forces a readable visual flag
+# 2. Safely Fetch API Credentials from Fusion Panel Vars
 API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 
-# 3. Dedicated Customer Support Profile for Norwegian Airlines
+# 3. Custom Support Profile for Norwegian Airlines
 AIRLINE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
 Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info.
 
 SUPPORT PROTOCOLS & FAQ:
-- Airports: We operate across multiple airports. We fly to various destinations.
-- Upgrade Glitches: If a passenger bought an optional upgrade/gamepass and it is glitching, instruct them to use the '!rejoin' command in-game. If that fails, tell them they are already in the right place and can continue messaging you here in DMs for direct support.
+- Airports: We operate across multiple airports. Do not list just one single hub. We fly to various destinations.
+- Upgrade Glitches: If a passenger bought an optional upgrade/gamepass and it is glitching, instruct them to use the '!rejoin' command in-game or reconnect to the Roblox server. If that fails, tell them they are already in the right place and can continue messaging you here in DMs for direct support.
 - Support Channel: Our direct customer support helpdesk is handled entirely here through Direct Messages (DMs). Passengers can message the bot anytime for private assistance.
-- Flight Schedules: We announce upcoming flights in our server's announcement channels. Advise users to check pinned messages there. Do not guess or make up flight times."""
+- Flight Schedules: We announce upcoming flights in our server's announcement channels. Advise users to check pinned messages there. Do not guess or make up flight times.
+- Exploiter / Troller Reports: Direct passengers to report disruptions to our active moderation team or open a claim. Do not attempt to issue punishments yourself.
+- Staff Promotions: To join the Norwegian Airlines crew or earn promotions, passengers must attend official training sessions announced ahead of time in the Discord server.
+
+TONE GUIDELINES:
+- Act like an elite airport concierge helpdesk. Always be exceptionally polite, helpful, empathetic, and professional. 
+- Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox."""
 
 async def generate_ai_reply(user_prompt):
-    """Helper function to run text generation through Gemini Cloud"""
+    """Helper function to run text generation through active Gemini Cloud endpoint"""
     if not API_KEY:
         return "⚠️ Configuration Error: The server's 'GEMINI_API_KEY' environment variable is empty. Please verify your keys in the Fusion Panel."
         
     ai_client = genai.Client(api_key=API_KEY)
     response = ai_client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-3.6-flash',  # Updated to fix the 404 deprecation error
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=AIRLINE_KNOWLEDGE,
@@ -50,15 +55,15 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # HANDLE DIRECT MESSAGES
+    # HANDLE DIRECT MESSAGES (Private Airline Support Hub)
     if isinstance(message.channel, discord.DMChannel):
         async with message.channel.typing():
             try:
                 reply = await generate_ai_reply(message.content)
                 await message.reply(reply)
             except Exception as e:
-                # Forces the real system error to print straight into the Discord chat for debugging
-                await message.reply(f"⚠️ API Error Encountered:\n```{str(e)}```")
+                # Catch any unexpected runtime errors visually inside chat logs
+                await message.reply(f"⚠️ Helpdesk API Error Encountered:\n```{str(e)}```")
         return 
 
     # HANDLE PUBLIC SERVER MENTIONS
@@ -66,7 +71,7 @@ async def on_message(message):
         user_prompt = message.content.replace(f"<@{bot.user.id}>", "").strip()
         
         if not user_prompt:
-            await message.reply("Welcome to Norwegian Airlines Customer Support! Open a DM with me for private help. 🛫")
+            await message.reply("Welcome to Norwegian Airlines Customer Support! Open a private DM with me for direct assistance. 🛫")
             return
 
         async with message.channel.typing():
@@ -74,12 +79,12 @@ async def on_message(message):
                 reply = await generate_ai_reply(user_prompt)
                 await message.reply(reply)
             except Exception as e:
-                await message.reply(f"⚠️ API Error Encountered:\n```{str(e)}```")
+                await message.reply(f"⚠️ Helpdesk API Error Encountered:\n```{str(e)}```")
 
     await bot.process_commands(message)
 
-# Force runtime crash if the token is completely missing
+# Pre-flight safety check for token variables
 if not DISCORD_TOKEN:
-    raise ValueError("CRITICAL: DISCORD_TOKEN variable is completely empty or missing from your settings page.")
+    raise ValueError("CRITICAL ERROR: DISCORD_TOKEN is missing or completely unreadable on the settings page.")
 
 bot.run(DISCORD_TOKEN)
