@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 from google import genai
 from google.genai import types
+import requests
 
 # 1. Initialize Discord Bot Configuration
 intents = discord.Intents.default()
@@ -18,9 +19,9 @@ DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 # 3. Global Hardcoded Override Permission
 OVERRIDE_USER_ID = 1433433247735353370
 
-# 4. Dynamic Application Memory Storage
+# 4. Dynamic Training Storage
 SERVER_CONFIG = {
-    "info_documents": "We operate across multiple airports. If optional upgrades glitch, use !rejoin or reconnect.",
+    "trained_knowledge_base": "We operate across multiple airports. If optional upgrades glitch, use !rejoin or reconnect.",
     "departments": "General Flight Support, Premium/First Class Priority Desk, Staff HR",
     "dm_log_channel_id": None,      
     "takeover_channel_id": None     
@@ -28,29 +29,23 @@ SERVER_CONFIG = {
 
 ACTIVE_CLAIMS = {} 
 
-# 5. Standard Airline Guidelines Context
+# 5. Core Personality Constraints
 BASE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
-Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info.
-
-SUPPORT PROTOCOLS & FAQ:
-- Airports: We operate across multiple airports. Do not list just one single hub. We fly to various destinations.
-- Upgrade Glitches: If a passenger bought an optional upgrade/gamepass and it is glitching, instruct them to use the '!rejoin' command in-game or reconnect to the Roblox server. If that fails, tell them they can continue messaging you here in DMs for direct support.
-- Support Channel: Our direct customer support helpdesk is handled entirely here through Direct Messages (DMs). Passengers can message the bot anytime for private assistance.
-- Flight Schedules: We announce upcoming flights in our server's announcement channels. Advise users to check pinned messages there. Do not guess or make up flight times.
-- Exploiter / Troller Reports: Direct passengers to report disruptions to our active moderation team or open a claim. Do not attempt to issue punishments yourself.
-- Staff Promotions: To join the Norwegian Airlines crew or earn promotions, passengers must attend official training sessions announced ahead of time in the Discord server.
+Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info based strictly on our uploaded documents.
 
 TONE GUIDELINES:
 - Act like an elite airport concierge helpdesk. Always be exceptionally polite, helpful, empathetic, and professional. 
 - Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox. Do not include emojis in your responses."""
 
 async def generate_ai_reply(user_prompt):
-    """Helper function to run text generation through active Gemini Cloud endpoint"""
+    """Helper function to run text generation using dynamically trained knowledge logs"""
     if not API_KEY:
         return "Configuration Error: The server's 'GEMINI_API_KEY' environment variable is empty."
         
     ai_client = genai.Client(api_key=API_KEY)
-    full_context = f"{BASE_KNOWLEDGE}\n\nCURRENT SERVER SETTINGS:\n{SERVER_CONFIG['info_documents']}\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
+    
+    # Inject the freshly trained document data straight into the active system context
+    full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
     
     response = ai_client.models.generate_content(
         model='gemini-3.6-flash',
@@ -142,24 +137,55 @@ async def unclaim(interaction: discord.Interaction, passenger_id: str):
     else:
         await interaction.response.send_message(f"This passenger ({passenger.name}) does not have an active human claim session open.", ephemeral=True)
 
+# Command: /upload (Train Bot on custom text files or web links)
+@bot.tree.command(name="upload", description="Provide a website link, Roblox rule page, or text document link to train the AI assistant.")
+@is_admin_or_override()
+@app_commands.describe(
+    url="The full web link or text file URL (e.g. pastebin, roblox group link) containing training documentation."
+)
+async def upload(interaction: discord.Interaction, url: str):
+    await interaction.response.defer(ephemeral=True) # Give the script time to download the file
+    
+    try:
+        # Fetch the content from the provided URL link
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            scraped_text = response.text
+            
+            # If the text is overly long, clip it to fit structural limits smoothly
+            if len(scraped_text) > 40000:
+                scraped_text = scraped_text[:40000]
+                
+            # Permanently update the active working data registry
+            SERVER_CONFIG["trained_knowledge_base"] = scraped_text
+            
+            embed = discord.Embed(
+                title="AI Support Training Complete", 
+                description=f"The bot has read the provided source document successfully.\nCharacter count incorporated into memory: {len(scraped_text)} characters.\nAll passenger answers will now reflect these updated rules.", 
+                color=discord.Color.green()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(f"Failed to fetch content from URL. Server returned status code: {response.status_code}", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"Training Exception Encountered: {str(e)}", ephemeral=True)
+
 # Command: /configure
-@bot.tree.command(name="configure", description="Configure AI guidelines, corporate departments, and channel outputs.")
+@bot.tree.command(name="configure", description="Configure corporate departments and channel outputs.")
 @is_admin_or_override()  
 @app_commands.describe(
-    documents="Custom rules or update details the AI should read to answer passenger prompts.",
     departments="List of custom organizational support divisions.",
     dm_logs="The text channel where normal AI-passenger DM chat logs mirror into.",
     takeover_channel="The hub channel where support representatives monitor and execute /claim commands."
 )
 async def configure(
     interaction: discord.Interaction, 
-    documents: str = None, 
     departments: str = None, 
     dm_logs: discord.TextChannel = None, 
     takeover_channel: discord.TextChannel = None
 ):
-    if documents:
-        SERVER_CONFIG["info_documents"] = documents
     if departments:
         SERVER_CONFIG["departments"] = departments
     if dm_logs:
@@ -168,7 +194,6 @@ async def configure(
         SERVER_CONFIG["takeover_channel_id"] = takeover_channel.id
 
     status_summary = (
-        f"Documents Status: Updated\n"
         f"Departments Listed: {SERVER_CONFIG['departments']}\n"
         f"DM Logs Feed Channel: <#{SERVER_CONFIG['dm_log_channel_id']}>\n"
         f"Human Takeover Hub: <#{SERVER_CONFIG['takeover_channel_id']}>"
@@ -273,4 +298,3 @@ if not DISCORD_TOKEN:
 
 bot.run(DISCORD_TOKEN)
 
-    
