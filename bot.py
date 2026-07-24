@@ -265,6 +265,7 @@ async def on_message(message):
             
             if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
                                 if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
+                            if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
                     req_th_id = SERVER_CONFIG["requests_thread_id"]
                     if req_th_id:
                         req_thread = bot.get_channel(req_th_id)
@@ -324,4 +325,4 @@ async def on_message(message):
     await bot.process_commands(message)
 
 bot.run(DISCORD_TOKEN)
-
+                         
