@@ -11,7 +11,6 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # 2. Fetch API Credentials from Fusion Panel Settings
-API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 
 # 3. Global Hardcoded Override Permission
@@ -27,7 +26,6 @@ SERVER_CONFIG = {
 }
 
 ACTIVE_CLAIMS = {} 
-
 # 5. Core Personality Constraints
 BASE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
 Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info based strictly on our uploaded documents.
@@ -43,22 +41,6 @@ async def generate_ai_reply(user_prompt):
     """Helper function running text inference through a completely free, unlimited open-source cloud container endpoint"""
     try:
         api_url = "https://huggingface.co"
-        full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
-        payload = {
-            "inputs": f"<|system|>\n{full_context}\n<|user|>\n{user_prompt}\n<|assistant|>\n",
-            "parameters": {"max_new_tokens": 200, "temperature": 0.4}
-        }
-        response = requests.post(api_url, json=payload, timeout=12)
-        if response.status_code == 200:
-            res_json = response.json()
-            if isinstance(res_json, list) and len(res_json) > 0:
-                raw_text = res_json[0].get('generated_text', '')
-            async def generate_ai_reply(user_prompt):
-    """Helper function running text inference through a completely free, unlimited open-source cloud container endpoint"""
-    try:
-        api_url = "https://huggingface.co"
-        
-        # Pulls your secure token directly from the Fusion variables dashboard
         headers = {"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"}
         
         full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
@@ -67,12 +49,11 @@ async def generate_ai_reply(user_prompt):
             "parameters": {"max_new_tokens": 200, "temperature": 0.4}
         }
         
-        # Passes the security headers securely to the independent cluster
         response = requests.post(api_url, headers=headers, json=payload, timeout=12)
         if response.status_code == 200:
             res_json = response.json()
             if isinstance(res_json, list) and len(res_json) > 0:
-                raw_text = res_json[0].get('generated_text', '') # Corrected list accessor indexing
+                raw_text = res_json[0].get('generated_text', '')
             else:
                 raw_text = res_json.get('generated_text', '')
             if "<|assistant|>\n" in raw_text:
@@ -81,7 +62,6 @@ async def generate_ai_reply(user_prompt):
         return f"Error: Independent server cluster returned status code {response.status_code}"
     except Exception as e:
         return f"Independent AI Core Pipeline Exception: {str(e)}"
-
         # Custom Permission Check: Grant access if user has Manage Roles OR is the hardcoded ID
 def is_admin_or_override():
     def predicate(interaction: discord.Interaction) -> bool:
@@ -338,6 +318,7 @@ if not DISCORD_TOKEN:
     raise ValueError("CRITICAL ERROR: DISCORD_TOKEN is missing or completely unreadable on the settings page.")
 
 bot.run(DISCORD_TOKEN)
+
 
 
 
