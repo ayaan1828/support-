@@ -1,3 +1,2 @@
 discord.py
-transformers
-torch --index-url https://pytorch.org
+google-genai
