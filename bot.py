@@ -262,10 +262,7 @@ async def on_message(message):
             passenger_embed = discord.Embed(description=reply, color=discord.Color.light_gray())
             passenger_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
             await message.reply(embed=passenger_embed)
-            
             if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
-                                if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
-                            if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
                     req_th_id = SERVER_CONFIG["requests_thread_id"]
                     if req_th_id:
                         req_thread = bot.get_channel(req_th_id)
