@@ -1,81 +1,64 @@
 import os
 import discord
 from discord.ext import commands
-from google import genai
-from google.genai import types
+import requests
 
-# 1. Initialize Discord Bot Configuration
 intents = discord.Intents.default()
 intents.message_content = True  
-intents.members = True # Essential to handle incoming Direct Messages smoothly
+intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 2. Connects to the cloud AI engine using your environment variable
-ai_client = genai.Client()
+# Norwegian Airlines Context Block
+AIRLINE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, a Roblox aviation group. Always be polite, concise, and professional. 
+RULES: We operate across multiple airports. If an optional upgrade glitches, instruct the passenger to use the '!rejoin' command or reconnect. Direct Messages (DMs) are our primary support desk channel."""
 
-# 3. Dedicated Customer Support Profile for Norwegian Airlines
-AIRLINE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
-Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info.
-
-SUPPORT PROTOCOLS & FAQ:
-- Airports: We operate across multiple airports. Do not list just one single hub. We fly to various destinations.
-- Upgrade Glitches: If a passenger bought an optional upgrade/gamepass and it is glitching, instruct them to use the '!rejoin' command in-game or reconnect to the Roblox server. If that fails, tell them they are already in the right place and can continue messaging you here in DMs for direct support.
-- Support Channel: Our direct customer support helpdesk is handled entirely here through Direct Messages (DMs). Passengers can message the bot anytime for private assistance.
-- Flight Schedules: We announce upcoming flights in our server's announcement channels. Advise users to check pinned messages there. Do not guess or make up flight times.
-- Exploiter / Troller Reports: Direct passengers to report disruptions to our active moderation team or open a claim. Do not attempt to issue punishments yourself.
-- Staff Promotions: To join the Norwegian Airlines crew or earn promotions, passengers must attend official training sessions announced ahead of time in the Discord server.
-
-TONE GUIDELINES:
-- Act like an elite airport concierge helpdesk. Always be exceptionally polite, helpful, empathetic, and professional. 
-- Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox."""
-
-async def generate_ai_reply(user_prompt):
-    """Helper function to run text generation through Gemini Cloud"""
-    response = ai_client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=AIRLINE_KNOWLEDGE,
-            temperature=0.7
-        )
-    )
-    return response.text if response.text else "I am currently processing flight data. Could you please rephrase your request?"
+def query_free_ai(user_prompt):
+    """Fallback engine using a free server pipeline to avoid 400 location errors"""
+    try:
+        # Calls a public open-source instruction model
+        api_url = "https://huggingface.co"
+        headers = {"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"}
+        
+        payload = {
+            "inputs": f"<|system|>\n{AIRLINE_KNOWLEDGE}\n<|user|>\n{user_prompt}\n<|assistant|>\n",
+            "parameters": {"max_new_tokens": 150, "temperature": 0.7}
+        }
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=10)
+        if response.status_code == 200:
+            res_json = response.json()
+            raw_text = res_json[0]['generated_text']
+            # Clean out structural prompt templates if visible
+            return raw_text.split("<|assistant|>\n")[-1].strip()
+    except Exception as e:
+        print(f"API Fetch Error: {e}")
+    return "Welcome to Norwegian Airlines Customer Support! Use '!rejoin' if an item is missing, or ask your question here."
 
 @bot.event
 async def on_ready():
-    print(f"✈️ Norwegian Airlines Support Bot is live on Discord as {bot.user.name}!")
+    print(f"✈️ Norwegian Airlines Support Bot is live as {bot.user.name}!")
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # HANDLE DIRECT MESSAGES
+    # Handle direct message help desk tasks
     if isinstance(message.channel, discord.DMChannel):
         async with message.channel.typing():
-            try:
-                reply = await generate_ai_reply(message.content)
-                await message.reply(reply)
-            except Exception as e:
-                print(f"Cloud DM AI Error: {e}")
-                await message.reply("⚠️ Our support server container is handling a heavy queue. Please try your request again in a moment.")
+            reply = query_free_ai(message.content)
+            await message.reply(reply)
         return 
 
-    # HANDLE PUBLIC SERVER MENTIONS
+    # Handle public channel mentions
     if bot.user.mentioned_in(message):
         user_prompt = message.content.replace(f"<@{bot.user.id}>", "").strip()
-        
         if not user_prompt:
-            await message.reply("Welcome to Norwegian Airlines Customer Support! Open a DM with me for private help, or ask your question here. 🛫")
+            await message.reply("Welcome to Norwegian Airlines Customer Support! Open a DM with me for private help. 🛫")
             return
-
         async with message.channel.typing():
-            try:
-                reply = await generate_ai_reply(user_prompt)
-                await message.reply(reply)
-            except Exception as e:
-                print(f"Cloud Server AI Error: {e}")
-                await message.reply("⚠️ Our support server container is handling a heavy queue. Please try your request again in a moment.")
+            reply = query_free_ai(user_prompt)
+            await message.reply(reply)
 
     await bot.process_commands(message)
 
