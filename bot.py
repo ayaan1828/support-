@@ -42,12 +42,12 @@ SUPPORT PROTOCOLS & FAQ:
 
 TONE GUIDELINES:
 - Act like an elite airport concierge helpdesk. Always be exceptionally polite, helpful, empathetic, and professional. 
-- Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox."""
+- Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox. Do not include emojis in your responses."""
 
 async def generate_ai_reply(user_prompt):
     """Helper function to run text generation through active Gemini Cloud endpoint"""
     if not API_KEY:
-        return "⚠️ Configuration Error: The server's 'GEMINI_API_KEY' environment variable is empty."
+        return "Configuration Error: The server's 'GEMINI_API_KEY' environment variable is empty."
         
     ai_client = genai.Client(api_key=API_KEY)
     full_context = f"{BASE_KNOWLEDGE}\n\nCURRENT SERVER SETTINGS:\n{SERVER_CONFIG['info_documents']}\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
@@ -75,10 +75,10 @@ def is_admin_or_override():
 # 6. Application Commands Interface Setup
 @bot.event
 async def on_ready():
-    print("🔄 Synchronizing global slash commands...")
+    print("Synchronizing global slash commands...")
     try:
         await bot.tree.sync() 
-        print(f"✈️ Norwegian Airlines Support Bot is active as {bot.user.name} and commands are synced!")
+        print(f"Norwegian Airlines Support Bot is active as {bot.user.name} and commands are synced!")
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
@@ -94,17 +94,18 @@ async def claim(interaction: discord.Interaction, passenger_id: str):
         passenger_user_id = int(passenger_id)
         passenger = await bot.fetch_user(passenger_user_id)
     except Exception:
-        await interaction.response.send_message("❌ Invalid user ID. Please provide a valid numeric Discord ID.", ephemeral=True)
+        await interaction.response.send_message("Invalid user ID. Please provide a valid numeric Discord ID.", ephemeral=True)
         return
 
     ACTIVE_CLAIMS[passenger_user_id] = interaction.user.id
-    await interaction.response.send_message(
-        f"✅ **Session Claimed!** You have taken over support for **{passenger.name}**.\n"
-        f"The AI is now **PAUSED** for this user. Any message you type in this channel will be sent straight to their DMs. "
-        f"They can text you back here.", 
-        ephemeral=False
+    
+    embed = discord.Embed(
+        title="Session Claimed",
+        description=f"You have taken over support for {passenger.name}.\nThe AI is now paused for this user. Any message you type in this channel will be sent straight to their DMs.",
+        color=discord.Color.blue()
     )
-# Command: /unclaim (Close Ticket)
+    await interaction.response.send_message(embed=embed, ephemeral=False)
+    # Command: /unclaim (Close Ticket)
 @bot.tree.command(name="unclaim", description="Close an active support session and return the passenger back to the AI assistant.")
 @app_commands.describe(passenger_id="The Discord User ID of the passenger whose session you want to close.")
 async def unclaim(interaction: discord.Interaction, passenger_id: str):
@@ -116,22 +117,34 @@ async def unclaim(interaction: discord.Interaction, passenger_id: str):
         passenger_user_id = int(passenger_id)
         passenger = await bot.fetch_user(passenger_user_id)
     except Exception:
-        await interaction.response.send_message("❌ Invalid user ID. Please provide a valid numeric Discord ID.", ephemeral=True)
+        await interaction.response.send_message("Invalid user ID. Please provide a valid numeric Discord ID.", ephemeral=True)
         return
 
     if passenger_user_id in ACTIVE_CLAIMS:
         del ACTIVE_CLAIMS[passenger_user_id]
-        await interaction.response.send_message(f"🔒 **Session Closed!** Support for **{passenger.name}** has been wrapped up. The AI is now **RE-ENABLED** for this user.")
+        
+        staff_embed = discord.Embed(
+            title="Session Closed",
+            description=f"Support for {passenger.name} has been wrapped up. The AI is now re-enabled for this user.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=staff_embed)
+        
         try:
-            await passenger.send("🔒 *This support session has been closed by Norwegian Airlines staff. The AI Automated Helpdesk is now active to assist you again.*")
+            passenger_embed = discord.Embed(
+                description="This support session has been closed by Norwegian Airlines staff. The AI Automated Helpdesk is now active to assist you again.",
+                color=discord.Color.red()
+            )
+            passenger_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+            await passenger.send(embed=passenger_embed)
         except Exception:
             pass
     else:
-        await interaction.response.send_message(f"⚠️ This passenger (**{passenger.name}**) does not have an active human claim session open.", ephemeral=True)
+        await interaction.response.send_message(f"This passenger ({passenger.name}) does not have an active human claim session open.", ephemeral=True)
 
 # Command: /configure
 @bot.tree.command(name="configure", description="Configure AI guidelines, corporate departments, and channel outputs.")
-@is_admin_or_override()  # Uses our custom override permission checker
+@is_admin_or_override()  
 @app_commands.describe(
     documents="Custom rules or update details the AI should read to answer passenger prompts.",
     departments="List of custom organizational support divisions.",
@@ -155,18 +168,19 @@ async def configure(
         SERVER_CONFIG["takeover_channel_id"] = takeover_channel.id
 
     status_summary = (
-        f"🛠️ **Norwegian Airlines AI Configuration Updated!**\n\n"
-        f"📂 **Documents Status:** Updated\n"
-        f"🏢 **Departments Listed:** {SERVER_CONFIG['departments']}\n"
-        f"📋 **DM Logs Feed Channel:** <#{SERVER_CONFIG['dm_log_channel_id']}>\n"
-        f"🚨 **Human Takeover Hub:** <#{SERVER_CONFIG['takeover_channel_id']}>"
+        f"Documents Status: Updated\n"
+        f"Departments Listed: {SERVER_CONFIG['departments']}\n"
+        f"DM Logs Feed Channel: <#{SERVER_CONFIG['dm_log_channel_id']}>\n"
+        f"Human Takeover Hub: <#{SERVER_CONFIG['takeover_channel_id']}>"
     )
-    await interaction.response.send_message(status_summary, ephemeral=True)
+    
+    embed = discord.Embed(title="Norwegian Airlines AI Configuration Updated", description=status_summary, color=discord.Color.green())
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @configure.error
 async def configure_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ Access Denied: You need the `Manage Roles` permission to modify configurations.", ephemeral=True)
+        await interaction.response.send_message("Access Denied: You need the Manage Roles permission to modify configurations.", ephemeral=True)
 
 # 7. Messaging Router Pipeline Logic
 @bot.event
@@ -183,22 +197,31 @@ async def on_message(message):
             if takeover_chan_id:
                 takeover_channel = bot.get_channel(takeover_chan_id)
                 if takeover_channel:
-                    await takeover_channel.send(f"💬 **[Human Claim] {message.author.name} (ID: {passenger_id}):** {message.content}")
+                    embed = discord.Embed(description=message.content, color=discord.Color.orange())
+                    embed.set_author(name=f"{message.author.name} (ID: {passenger_id})", icon_url=message.author.display_avatar.url)
+                    await takeover_channel.send(embed=embed)
                     return
             return
 
         async with message.channel.typing():
             try:
                 reply = await generate_ai_reply(message.content)
-                await message.reply(reply)
+                
+                passenger_embed = discord.Embed(description=reply, color=discord.Color.light_gray())
+                passenger_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+                await message.reply(embed=passenger_embed)
                 
                 log_chan_id = SERVER_CONFIG["dm_log_channel_id"]
                 if log_chan_id:
                     log_channel = bot.get_channel(log_chan_id)
                     if log_channel:
-                        await log_channel.send(f"📬 **DM Log** | User: **{message.author.name}** (ID: `{passenger_id}`)\n**Q:** {message.content}\n**A:** {reply}")
+                        log_embed = discord.Embed(color=discord.Color.blue())
+                        log_embed.set_author(name=f"DM Log | User: {message.author.name} (ID: {passenger_id})", icon_url=message.author.display_avatar.url)
+                        log_embed.add_field(name="Passenger Question", value=message.content, inline=False)
+                        log_embed.add_field(name="AI Assistant Response", value=reply, inline=False)
+                        await log_channel.send(embed=log_embed)
             except Exception as e:
-                await message.reply(f"⚠️ Helpdesk API Error Encountered:\n```{str(e)}```")
+                await message.reply(f"Helpdesk API Error Encountered:\n```{str(e)}```")
         return 
 
     # B: ROUTING HUMAN AGENT REPLIES BACK TO PASSENGER DMs
@@ -212,10 +235,14 @@ async def on_message(message):
         if target_passenger_id:
             try:
                 passenger_user = await bot.fetch_user(target_passenger_id)
-                await passenger_user.send(f"✈️ **Norwegian Airlines Staff Support ({message.author.name}):** {message.content}")
+                
+                staff_embed = discord.Embed(description=message.content, color=discord.Color.blue())
+                staff_embed.set_author(name=message.author.name, icon_url=message.author.display_avatar.url)
+                
+                await passenger_user.send(embed=staff_embed)
                 await message.add_reaction("✅")
             except Exception as e:
-                await message.channel.send(f"❌ Failed to route message to passenger DMs: {e}")
+                await message.channel.send(f"Failed to route message to passenger DMs: {e}")
         return
 
     # C: HANDLING PUBLIC SERVER MENTIONS (@bot)
@@ -223,15 +250,20 @@ async def on_message(message):
         user_prompt = message.content.replace(f"<@{bot.user.id}>", "").strip()
         
         if not user_prompt:
-            await message.reply("Welcome to Norwegian Airlines Customer Support! Open a private DM with me for direct assistance. 🛫")
+            embed = discord.Embed(description="Welcome to Norwegian Airlines Customer Support! Open a private DM with me for direct assistance.", color=discord.Color.light_gray())
+            embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+            await message.reply(embed=embed)
             return
 
         async with message.channel.typing():
             try:
                 reply = await generate_ai_reply(user_prompt)
-                await message.reply(reply)
+                
+                public_embed = discord.Embed(description=reply, color=discord.Color.light_gray())
+                public_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+                await message.reply(embed=public_embed)
             except Exception as e:
-                await message.reply(f"⚠️ Helpdesk API Error Encountered:\n```{str(e)}```")
+                await message.reply(f"Helpdesk API Error Encountered:\n```{str(e)}```")
 
     await bot.process_commands(message)
 
@@ -241,7 +273,4 @@ if not DISCORD_TOKEN:
 
 bot.run(DISCORD_TOKEN)
 
-
-
-
-
+    
