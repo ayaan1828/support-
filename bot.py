@@ -91,8 +91,7 @@ async def claim(interaction: discord.Interaction, passenger_id: str):
         f"They can text you back here.", 
         ephemeral=False
     )
-
-# Command: /unclaim (Close Ticket)
+    # Command: /unclaim (Close Ticket)
 @bot.tree.command(name="unclaim", description="Close an active support session and return the passenger back to the AI assistant.")
 @app_commands.describe(passenger_id="The Discord User ID of the passenger whose session you want to close.")
 async def unclaim(interaction: discord.Interaction, passenger_id: str):
@@ -200,17 +199,6 @@ async def on_message(message):
         if target_passenger_id:
             try:
                 passenger_user = await bot.fetch_user(target_passenger_id)
-                    # B: ROUTING HUMAN AGENT REPLIES BACK TO PASSENGER DMs
-    if message.channel.id == SERVER_CONFIG["takeover_channel_id"]:
-        target_passenger_id = None
-        for p_id, s_id in ACTIVE_CLAIMS.items():
-            if s_id == message.author.id:
-                target_passenger_id = p_id
-                break
-        
-        if target_passenger_id:
-            try:
-                passenger_user = await bot.fetch_user(target_passenger_id)
                 await passenger_user.send(f"✈️ **Norwegian Airlines Staff Support ({message.author.name}):** {message.content}")
                 await message.add_reaction("✅")
             except Exception as e:
@@ -239,4 +227,6 @@ if not DISCORD_TOKEN:
     raise ValueError("CRITICAL ERROR: DISCORD_TOKEN is missing or completely unreadable on the settings page.")
 
 bot.run(DISCORD_TOKEN)
+
+
 
