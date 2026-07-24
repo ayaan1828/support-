@@ -296,7 +296,7 @@ async def on_message(message):
                 await message.channel.send(f"Failed to route message to passenger DMs: {e}")
         return
 
-    # C: HANDLING PUBLIC SERVER MENTIONS (@bot)
+        # C: HANDLING PUBLIC SERVER MENTIONS (@bot)
     if bot.user.mentioned_in(message):
         user_prompt = message.content.replace(f"<@{bot.user.id}>", "").strip()
         if not user_prompt:
@@ -309,7 +309,7 @@ async def on_message(message):
             try:
                 reply = await generate_ai_reply(user_prompt)
                 public_embed = discord.Embed(description=reply, color=discord.Color.light_gray())
-                                public_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+                public_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
                 await message.reply(embed=public_embed)
             except Exception as e:
                 await message.reply(f"Helpdesk API Error Encountered:\n```{str(e)}```")
@@ -321,8 +321,3 @@ if not DISCORD_TOKEN:
     raise ValueError("CRITICAL ERROR: DISCORD_TOKEN is missing or completely unreadable on the settings page.")
 
 bot.run(DISCORD_TOKEN)
-
-
-        
-
-    
