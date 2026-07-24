@@ -67,74 +67,74 @@ async def generate_ai_reply(user_prompt):
     except Exception as e:
         return f"Independent AI Core Pipeline Exception: {str(e)}"
         import os
-import discord
-from discord.ext import commands
-from discord import app_commands
-import requests
+# Custom Permission Check: Grant access if user has Manage Roles OR is the hardcoded ID
+def is_admin_or_override():
+    def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.id == OVERRIDE_USER_ID:
+            return True
+        if interaction.permissions.manage_roles:
+            return True
+        raise app_commands.MissingPermissions(["manage_roles"])
+    return app_commands.check(predicate)
 
-# 1. Initialize Discord Bot Configuration
-intents = discord.Intents.default()
-intents.message_content = True  
-intents.members = True 
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-# 2. Fetch API Credentials from Fusion Panel Settings
-DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
-
-# 3. Global Hardcoded Override Permission
-OVERRIDE_USER_ID = 1433433247735353370
-
-# 4. Dynamic Training & Thread Storage Workspace Registry
-SERVER_CONFIG = {
-    "trained_knowledge_base": "We operate across multiple airports. If optional upgrades glitch, use !rejoin or reconnect.",
-    "departments": "General Flight Support, Premium/First Class Priority Desk, Staff HR",
-    "dm_log_thread_id": None,      
-    "takeover_thread_id": None,    
-    "requests_thread_id": None     
-}
-
-ACTIVE_CLAIMS = {} 
-
-# 5. Core Personality Constraints
-BASE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
-Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info based strictly on our uploaded documents.
-
-HUMAN ASSISTANCE PROTOCOL:
-If a passenger explicitly asks to talk to a real person, a manager, a staff member, or a human agent AND they present a valid reason (like a complicated bug, structural complaint, or staff report), politely inform them that you are lodging a human assistance request alert for them. Tell them our flight representatives have been notified and will message them shortly right here in their DMs.
-
-TONE GUIDELINES:
-- Act like an elite airport concierge helpdesk. Always be exceptionally polite, helpful, empathetic, and professional. 
-- Keep answers concise, clear, and direct so players can read them easily on mobile or PC while playing Roblox. Do not include emojis in your responses."""
-
-async def generate_ai_reply(user_prompt):
-    """Helper function running text inference through a completely free, unlimited open-source cloud container endpoint"""
+# 6. Application Commands Interface Setup
+@bot.event
+async def on_ready():
+    print("Synchronizing global slash commands...")
     try:
-        # Utilizing Qwen 2.5 7B Instruct: An elite open-source alternative providing fast, unlimited free inference pipelines
-        api_url = "https://huggingface.co"
-        
-        full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
-        
-        payload = {
-            "inputs": f"<|system|>\n{full_context}\n<|user|>\n{user_prompt}\n<|assistant|>\n",
-            "parameters": {"max_new_tokens": 200, "temperature": 0.4}
-        }
-        
-        response = requests.post(api_url, json=payload, timeout=12)
-        if response.status_code == 200:
-            res_json = response.json()
-            if isinstance(res_json, list) and len(res_json) > 0:
-                raw_text = res_json[0].get('generated_text', '')
-            else:
-                raw_text = res_json.get('generated_text', '')
-                
-            if "<|assistant|>\n" in raw_text:
-                return raw_text.split("<|assistant|>\n")[-1].strip()
-            return raw_text.strip()
-            
-        return f"Error: Independent server cluster returned status code {response.status_code}"
+        await bot.tree.sync() 
+        print(f"Norwegian Airlines Support Bot is active as {bot.user.name} and commands are synced!")
     except Exception as e:
-        return f"Independent AI Core Pipeline Exception: {str(e)}"
-        # Command: /autoconfigure (Creates Thread Configurations layout)
+        print(f"Error syncing commands: {e}")
+
+# Command: /claim (Native Member Selection)
+@bot.tree.command(name="claim", description="Claim a passenger's DM support session to pause the AI and take over manually.")
+@app_commands.describe(passenger="Select the server member you want to take over support for from the member list.")
+async def claim(interaction: discord.Interaction, passenger: discord.Member):
+    if not interaction.guild:
+        await interaction.response.send_message("This command can only be used inside the server.", ephemeral=True)
+        return
+
+    ACTIVE_CLAIMS[passenger.id] = interaction.user.id
+    
+    embed = discord.Embed(
+        title="Session Claimed",
+        description=f"You have taken over support for {passenger.name}.\nThe AI is now paused for this user. Any message you type in the designated takeover thread will be sent straight to their DMs.",
+        color=discord.Color.blue()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=False)
+
+# Command: /unclaim (Native Member Selection)
+@bot.tree.command(name="unclaim", description="Close an active support session and return the passenger back to the AI assistant.")
+@app_commands.describe(passenger="Select the server member whose session you want to close.")
+async def unclaim(interaction: discord.Interaction, passenger: discord.Member):
+    if not interaction.guild:
+        await interaction.response.send_message("This command can only be used inside the server.", ephemeral=True)
+        return
+
+    if passenger.id in ACTIVE_CLAIMS:
+        del ACTIVE_CLAIMS[passenger.id]
+        
+        staff_embed = discord.Embed(
+            title="Session Closed",
+            description=f"Support for {passenger.name} has been wrapped up. The AI is now re-enabled for this user.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=staff_embed)
+        
+        try:
+            passenger_embed = discord.Embed(
+                description="This support session has been closed by Norwegian Airlines staff. The AI Automated Helpdesk is now active to assist you again.",
+                color=discord.Color.red()
+            )
+            passenger_embed.set_author(name="Norwegian Airlines AI Assistant", icon_url=bot.user.display_avatar.url)
+            await passenger.send(embed=passenger_embed)
+        except Exception:
+            pass
+    else:
+        await interaction.response.send_message(f"This member ({passenger.name}) does not have an active human claim session open.", ephemeral=True)
+
+# Command: /autoconfigure (Auto-Creates Channel & Target Sub-Threads)
 @bot.tree.command(name="autoconfigure", description="Instantly provisions the #norwegian-helpdesk channel and sets up all support threads.")
 @is_admin_or_override()
 async def autoconfigure(interaction: discord.Interaction):
@@ -179,7 +179,7 @@ async def autoconfigure(interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"Workspace Configuration Failed: {str(e)}", ephemeral=True)
 
-# Command: /upload (Train Bot on custom data web files)
+# Command: /upload
 @bot.tree.command(name="upload", description="Provide a website link, Roblox rule page, or text document link to train the AI assistant.")
 @is_admin_or_override()
 @app_commands.describe(url="The web link or text file URL containing training documentation.")
@@ -264,23 +264,26 @@ async def on_message(message):
             await message.reply(embed=passenger_embed)
             
             if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
-                req_th_id = SERVER_CONFIG["requests_thread_id"]
-                if req_th_id:
-                    req_thread = bot.get_channel(req_th_id)
-                    if req_thread:
-                        req_embed = discord.Embed(title="Human Assistance Requested", description=f"Passenger **{message.author.name}** requires human agent intervention.\nUser Profile ID: `{passenger_id}`\n\n**Reason Prompt:** {message.content}", color=discord.Color.gold())
-                        req_embed.set_thumbnail(url=message.author.display_avatar.url)
-                        await req_thread.send(content="@here", embed=req_embed)
-            
-            log_th_id = SERVER_CONFIG["dm_log_thread_id"]
-            if log_th_id:
-                log_thread = bot.get_channel(log_th_id)
-                if log_thread:
-                    log_embed = discord.Embed(color=discord.Color.blue())
-                    log_embed.set_author(name=f"DM Log | User: {message.author.name}", icon_url=message.author.display_avatar.url)
-                    log_embed.add_field(name="Passenger Question", value=message.content, inline=False)
-                    log_embed.add_field(name="AI Response", value=reply, inline=False)
-                    await log_thread.send(embed=log_embed)
+                                if "human assistance request alert" in reply.lower() or "notified" in reply.lower():
+                    req_th_id = SERVER_CONFIG["requests_thread_id"]
+                    if req_th_id:
+                        req_thread = bot.get_channel(req_th_id)
+                        if req_thread:
+                            req_embed = discord.Embed(title="Human Assistance Requested", description=f"Passenger **{message.author.name}** requires human agent intervention.\nUser Profile ID: `{passenger_id}`\n\n**Reason Prompt:** {message.content}", color=discord.Color.gold())
+                            req_embed.set_thumbnail(url=message.author.display_avatar.url)
+                            await req_thread.send(content="@here", embed=req_embed)
+                
+                log_th_id = SERVER_CONFIG["dm_log_thread_id"]
+                if log_th_id:
+                    log_thread = bot.get_channel(log_th_id)
+                    if log_thread:
+                        log_embed = discord.Embed(color=discord.Color.blue())
+                        log_embed.set_author(name=f"DM Log | User: {message.author.name}", icon_url=message.author.display_avatar.url)
+                        log_embed.add_field(name="Passenger Question", value=message.content, inline=False)
+                        log_embed.add_field(name="AI Response", value=reply, inline=False)
+                        await log_thread.send(embed=log_embed)
+            except Exception as e:
+                await message.reply(f"Helpdesk API Error Encountered:\n```{str(e)}```")
         return 
 
     # B: ROUTING HUMAN AGENT REPLIES BACK TO PASSENGER DMs
@@ -321,5 +324,4 @@ async def on_message(message):
     await bot.process_commands(message)
 
 bot.run(DISCORD_TOKEN)
-
 
