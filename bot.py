@@ -1,65 +1,85 @@
 import os
 import discord
 from discord.ext import commands
-import requests
+from google import genai
+from google.genai import types
 
+# 1. Initialize Discord Bot Configuration
 intents = discord.Intents.default()
 intents.message_content = True  
 intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Norwegian Airlines Context Block
-AIRLINE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, a Roblox aviation group. Always be polite, concise, and professional. 
-RULES: We operate across multiple airports. If an optional upgrade glitches, instruct the passenger to use the '!rejoin' command or reconnect. Direct Messages (DMs) are our primary support desk channel."""
+# 2. Safely Fetch API Credentials
+# If the Fusion panel drops the key, this forces a readable visual flag
+API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
 
-def query_free_ai(user_prompt):
-    """Fallback engine using a free server pipeline to avoid 400 location errors"""
-    try:
-        # Calls a public open-source instruction model
-        api_url = "https://huggingface.co"
-        headers = {"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"}
+# 3. Dedicated Customer Support Profile for Norwegian Airlines
+AIRLINE_KNOWLEDGE = """You are the official Customer Support Helpdesk Agent for Norwegian Airlines, an elite Roblox aviation group. 
+Your primary goal is to resolve passenger issues, handle upgrade complaints, and provide flight operational info.
+
+SUPPORT PROTOCOLS & FAQ:
+- Airports: We operate across multiple airports. We fly to various destinations.
+- Upgrade Glitches: If a passenger bought an optional upgrade/gamepass and it is glitching, instruct them to use the '!rejoin' command in-game. If that fails, tell them they are already in the right place and can continue messaging you here in DMs for direct support.
+- Support Channel: Our direct customer support helpdesk is handled entirely here through Direct Messages (DMs). Passengers can message the bot anytime for private assistance.
+- Flight Schedules: We announce upcoming flights in our server's announcement channels. Advise users to check pinned messages there. Do not guess or make up flight times."""
+
+async def generate_ai_reply(user_prompt):
+    """Helper function to run text generation through Gemini Cloud"""
+    if not API_KEY:
+        return "⚠️ Configuration Error: The server's 'GEMINI_API_KEY' environment variable is empty. Please verify your keys in the Fusion Panel."
         
-        payload = {
-            "inputs": f"<|system|>\n{AIRLINE_KNOWLEDGE}\n<|user|>\n{user_prompt}\n<|assistant|>\n",
-            "parameters": {"max_new_tokens": 150, "temperature": 0.7}
-        }
-        
-        response = requests.post(api_url, headers=headers, json=payload, timeout=10)
-        if response.status_code == 200:
-            res_json = response.json()
-            raw_text = res_json[0]['generated_text']
-            # Clean out structural prompt templates if visible
-            return raw_text.split("<|assistant|>\n")[-1].strip()
-    except Exception as e:
-        print(f"API Fetch Error: {e}")
-    return "Welcome to Norwegian Airlines Customer Support! Use '!rejoin' if an item is missing, or ask your question here."
+    ai_client = genai.Client(api_key=API_KEY)
+    response = ai_client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=AIRLINE_KNOWLEDGE,
+            temperature=0.7
+        )
+    )
+    return response.text if response.text else "I am processing flight data. Could you please rephrase your request?"
 
 @bot.event
 async def on_ready():
-    print(f"✈️ Norwegian Airlines Support Bot is live as {bot.user.name}!")
+    print(f"✈️ Norwegian Airlines Support Bot is active as {bot.user.name}!")
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Handle direct message help desk tasks
+    # HANDLE DIRECT MESSAGES
     if isinstance(message.channel, discord.DMChannel):
         async with message.channel.typing():
-            reply = query_free_ai(message.content)
-            await message.reply(reply)
+            try:
+                reply = await generate_ai_reply(message.content)
+                await message.reply(reply)
+            except Exception as e:
+                # Forces the real system error to print straight into the Discord chat for debugging
+                await message.reply(f"⚠️ API Error Encountered:\n```{str(e)}```")
         return 
 
-    # Handle public channel mentions
+    # HANDLE PUBLIC SERVER MENTIONS
     if bot.user.mentioned_in(message):
         user_prompt = message.content.replace(f"<@{bot.user.id}>", "").strip()
+        
         if not user_prompt:
             await message.reply("Welcome to Norwegian Airlines Customer Support! Open a DM with me for private help. 🛫")
             return
+
         async with message.channel.typing():
-            reply = query_free_ai(user_prompt)
-            await message.reply(reply)
+            try:
+                reply = await generate_ai_reply(user_prompt)
+                await message.reply(reply)
+            except Exception as e:
+                await message.reply(f"⚠️ API Error Encountered:\n```{str(e)}```")
 
     await bot.process_commands(message)
 
-bot.run(os.environ.get("DISCORD_TOKEN"))
+# Force runtime crash if the token is completely missing
+if not DISCORD_TOKEN:
+    raise ValueError("CRITICAL: DISCORD_TOKEN variable is completely empty or missing from your settings page.")
+
+bot.run(DISCORD_TOKEN)
