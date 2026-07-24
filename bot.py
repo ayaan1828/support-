@@ -40,7 +40,7 @@ TONE GUIDELINES:
 async def generate_ai_reply(user_prompt):
     """Helper function running text inference through a completely free, unlimited open-source cloud container endpoint"""
     try:
-        api_url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct"
+        api_url = "https://huggingface.co/Qwen/Qwen1.5B-Instruct"
         headers = {"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"}
         
         full_context = f"{BASE_KNOWLEDGE}\n\nTRAINED AIRLINE KNOWLEDGE AND RULES:\n{SERVER_CONFIG['trained_knowledge_base']}\n\nDEPARTMENTS:\n{SERVER_CONFIG['departments']}"
